@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#07070f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>SnackBox Scanner</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #07070f;
+      --s1:      #0f0f1c;
+      --s2:      #171727;
+      --s3:      #1e1e32;
+      --b1:      rgba(255,255,255,0.07);
+      --b2:      rgba(255,255,255,0.13);
+      --accent:  #f5c842;
+      --green:   #2dce89;
+      --red:     #ff4d4d;
+      --orange:  #ff8c42;
+      --blue:    #4d8cff;
+      --text:    #ede9e0;
+      --muted:   #5a5a7a;
+      --muted2:  #8888aa;
+      --r:       16px;
+    }
+
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    }
+
+    #app { min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── CONFIG BANNER (shown when API_URL not set) ─────────── */
+    #config-banner {
+      background: rgba(245,200,66,0.1); border-bottom: 1px solid rgba(245,200,66,0.3);
+      padding: 10px 16px; font-size: 13px; color: var(--accent);
+      text-align: center; line-height: 1.5; display: none;
+    }
+    #config-banner a { color: var(--accent); font-weight: 700; }
+
+    /* ── HEADER ─────────────────────────────────────────────── */
+    header {
+      padding: 14px 18px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--b1);
+      position: sticky; top: 0; z-index: 200;
+      background: rgba(7,7,15,0.94); backdrop-filter: blur(16px);
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 9px; display: grid; place-items: center; font-size: 18px; }
+    .logo-title { font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
+    .logo-sub { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-top: -1px; }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    .stats-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--s2); border: 1px solid var(--b1);
+      border-radius: 20px; padding: 6px 14px;
+      font-family: 'Space Mono', monospace; font-size: 13px;
+      cursor: pointer; transition: border-color .2s;
+    }
+    .stats-pill:hover { border-color: var(--b2); }
+    .stats-pill .count { color: var(--accent); font-weight: 700; }
+    .stats-pill.pulse { animation: pill-pulse .5s ease-out; }
+    @keyframes pill-pulse { 0%,100%{border-color:var(--b1)} 50%{border-color:var(--green)} }
+
+    .dot-conn { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); flex-shrink: 0; transition: all .3s; }
+    .dot-conn.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+    .dot-conn.checking { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+
+    /* ── STATS DRAWER ───────────────────────────────────────── */
+    #stats-drawer { overflow: hidden; max-height: 0; transition: max-height .35s ease; border-bottom: 1px solid var(--b1); background: var(--s1); }
+    #stats-drawer.open { max-height: 160px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); padding: 14px 18px; gap: 12px; }
+    .stat-item { text-align: center; }
+    .stat-val { font-size: 22px; font-weight: 800; line-height: 1; }
+    .stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; font-family: 'Space Mono', monospace; }
+    .stat-sub { font-size: 11px; color: var(--muted2); margin-top: 2px; }
+
+    /* ── CAMERA AREA ────────────────────────────────────────── */
+    #camera-section { padding: 18px; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+    #qr-reader {
+      width: 100% !important; max-width: 360px !important;
+      border-radius: var(--r) !important; overflow: hidden !important;
+      border: none !important; background: #000 !important;
+      display: none; box-shadow: 0 12px 40px rgba(0,0,0,.5); position: relative;
+    }
+    #qr-reader video { border-radius: var(--r) !important; width: 100% !important; }
+    #qr-reader__scan_region { background: #000 !important; }
+    #qr-reader__scan_region img { display: none !important; }
+    #qr-reader__dashboard { display: none !important; }
+
+    /* Corner frame */
+    .scan-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 200px; height: 200px; pointer-events: none; z-index: 10; }
+    .scan-frame::before,.scan-frame::after { content:''; position:absolute; width:32px; height:32px; border-color:var(--accent); border-style:solid; }
+    .scan-frame::before { top:0; left:0; border-width:3px 0 0 3px; border-radius:4px 0 0 0; }
+    .scan-frame::after  { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 4px 0; }
+    .scan-frame .c2::before { content:''; position:absolute; top:0; right:0; width:32px; height:32px; border-color:var(--accent); border-style:solid; border-width:3px 3px 0 0; border-radius:0 4px 0 0; }
+    .scan-frame .c2::after  { content:''; position:absolute; bottom:0; left:0; width:32px; height:32px; border-color:var(--accent); border-style:solid; border-width:0 0 3px 3px; border-radius:0 0 0 4px; }
+    .scan-line { position:absolute; left:10px; right:10px; height:2px; background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:scanline 2s ease-in-out infinite; display:none; }
+    .scan-line.active { display:block; }
+    @keyframes scanline { 0%{top:10px;opacity:1} 50%{opacity:.5} 100%{top:calc(100% - 12px);opacity:1} }
+
+    /* Placeholder */
+    #placeholder { width:100%; max-width:360px; aspect-ratio:1; background:var(--s1); border-radius:var(--r); border:1.5px dashed var(--b1); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; transition:border-color .3s; }
+    #placeholder:hover { border-color:var(--b2); }
+    .ph-icon { font-size:48px; opacity:.2; }
+    .ph-text { font-size:14px; color:var(--muted); text-align:center; line-height:1.6; }
+
+    /* Buttons */
+    #startBtn {
+      width:100%; max-width:360px; padding:16px;
+      background:var(--accent); color:#07070f;
+      font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:800;
+      border:none; border-radius:12px; cursor:pointer;
+      box-shadow:0 4px 24px rgba(245,200,66,.25); transition:all .2s;
+    }
+    #startBtn:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(245,200,66,.35); }
+    #startBtn:active { transform:scale(.98); }
+    #startBtn:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+
+    #stopBtn {
+      width:100%; max-width:360px; padding:12px;
+      background:transparent; color:var(--muted2);
+      font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600;
+      border:1px solid var(--b1); border-radius:12px; cursor:pointer; display:none; transition:all .2s;
+    }
+    #stopBtn:hover { border-color:var(--red); color:var(--red); }
+
+    /* Scanning badge */
+    .scanning-badge { display:none; align-items:center; gap:8px; background:var(--s2); border:1px solid var(--b1); border-radius:20px; padding:7px 16px; font-size:12px; color:var(--muted2); font-family:'Space Mono',monospace; }
+    .scanning-badge.active { display:flex; }
+    .dot { width:7px; height:7px; background:var(--green); border-radius:50%; animation:blink 1.2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.7)} }
+
+    /* Error box */
+    #errorBox { display:none; width:100%; max-width:360px; background:rgba(255,77,77,.08); border:1px solid rgba(255,77,77,.25); border-radius:10px; padding:12px 16px; font-size:13px; color:var(--red); line-height:1.5; }
+
+    /* Manual search */
+    #manual-section { width:100%; max-width:360px; }
+    .manual-toggle { width:100%; background:transparent; border:none; color:var(--muted); font-size:13px; font-family:'Space Grotesk',sans-serif; cursor:pointer; padding:8px 0; text-align:center; transition:color .2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+    .manual-toggle:hover { color:var(--accent); }
+    .manual-row { display:none; gap:8px; margin-top:8px; }
+    .manual-row.open { display:flex; }
+    #manualInput { flex:1; background:var(--s2); border:1px solid var(--b1); border-radius:10px; padding:11px 14px; color:var(--text); font-family:'Space Mono',monospace; font-size:13px; outline:none; transition:border-color .2s; }
+    #manualInput:focus { border-color:var(--accent); }
+    #manualInput::placeholder { color:var(--muted); }
+    .manual-go { background:var(--s3); border:1px solid var(--b2); border-radius:10px; padding:11px 16px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; transition:all .2s; white-space:nowrap; }
+    .manual-go:hover { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+
+    /* ── RESULT PANEL ───────────────────────────────────────── */
+    #result-panel { padding:0 18px 28px; display:none; }
+
+    .result-card { background:var(--s1); border-radius:var(--r); border:1px solid var(--b1); overflow:hidden; max-width:360px; margin:0 auto; animation:rise .3s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes rise { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+    .rh { padding:18px 20px; display:flex; align-items:center; gap:12px; }
+    .rh-ok     { background:rgba(45,206,137,.1);  border-bottom:1px solid rgba(45,206,137,.15); }
+    .rh-warn   { background:rgba(255,140,66,.1);   border-bottom:1px solid rgba(255,140,66,.15); }
+    .rh-err    { background:rgba(255,77,77,.1);    border-bottom:1px solid rgba(255,77,77,.15); }
+    .rh-load   { background:var(--s2);             border-bottom:1px solid var(--b1); }
+    .rh-cancel { background:rgba(255,77,77,.06);   border-bottom:1px solid rgba(255,77,77,.1); }
+
+    .ri { font-size:30px; flex-shrink:0; }
+    .rt { font-size:19px; font-weight:700; flex:1; }
+    .rh-ok .rt    { color:var(--green); }
+    .rh-warn .rt  { color:var(--orange); }
+    .rh-err .rt   { color:var(--red); }
+    .rh-load .rt  { color:var(--muted2); }
+    .rh-cancel .rt { color:var(--red); }
+
+    .rbody { padding:16px 20px; display:flex; flex-direction:column; gap:11px; }
+    .irow  { display:flex; align-items:baseline; gap:12px; }
+    .ilbl  { font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; min-width:88px; flex-shrink:0; }
+    .ival  { font-size:16px; font-weight:600; flex:1; }
+    .ival.big { font-size:42px; font-weight:800; color:var(--accent); line-height:1; }
+
+    .tbadge { display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; font-family:'Space Mono',monospace; }
+    .t-now   { background:rgba(45,206,137,.15); color:var(--green); }
+    .t-later { background:rgba(255,140,66,.15); color:var(--orange); }
+    .t-unk   { background:var(--s3); color:var(--muted2); }
+
+    .sbadge { display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; font-family:'Space Mono',monospace; }
+    .sb-col  { background:rgba(45,206,137,.15); color:var(--green); }
+    .sb-paid { background:rgba(245,200,66,.15); color:var(--accent); }
+    .sb-later{ background:rgba(255,140,66,.15); color:var(--orange); }
+    .sb-can  { background:rgba(255,77,77,.15); color:var(--red); }
+
+    .comment-text { font-size:13px; color:var(--muted2); font-style:italic; background:var(--s2); border-radius:8px; padding:8px 12px; line-height:1.5; flex:1; }
+
+    /* Actions */
+    .ract { padding:0 20px 18px; display:flex; flex-direction:column; gap:10px; }
+    .arow { display:flex; gap:10px; }
+
+    .btn-collect { flex:1; padding:13px 18px; background:var(--green); color:#07070f; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:800; border:none; border-radius:10px; cursor:pointer; transition:all .2s; }
+    .btn-collect:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(45,206,137,.3); }
+    .btn-collect:disabled { opacity:.5; transform:none; box-shadow:none; }
+
+    .btn-cash  { flex:1; padding:13px 18px; background:rgba(255,140,66,.12); color:var(--orange); border:1px solid rgba(255,140,66,.25); font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; border-radius:10px; cursor:pointer; transition:all .2s; }
+    .btn-cash:hover { background:rgba(255,140,66,.2); }
+
+    .btn-flag  { padding:11px 14px; background:transparent; border:1px solid var(--b1); border-radius:10px; color:var(--muted2); font-size:16px; cursor:pointer; transition:all .2s; flex-shrink:0; }
+    .btn-flag:hover { border-color:var(--blue); color:var(--blue); }
+
+    .btn-next  { width:100%; padding:14px; background:var(--s2); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:700; border:1px solid var(--b1); border-radius:10px; cursor:pointer; transition:all .2s; text-align:center; }
+    .btn-next:hover { background:var(--s3); border-color:var(--b2); }
+
+    /* Cash input */
+    .cash-row { display:none; align-items:center; gap:8px; animation:rise .2s ease-out; }
+    .cash-row.open { display:flex; }
+    .cash-pfx { background:var(--s3); border:1px solid var(--b2); border-radius:10px 0 0 10px; border-right:none; padding:11px 12px; color:var(--muted2); font-size:14px; font-family:'Space Mono',monospace; }
+    #cashInput { flex:1; background:var(--s3); border:1px solid var(--b2); border-left:none; border-radius:0 10px 10px 0; padding:11px 12px; color:var(--text); font-family:'Space Mono',monospace; font-size:15px; outline:none; transition:border-color .2s; }
+    #cashInput:focus { border-color:var(--orange); }
+    .btn-cash-ok { padding:11px 16px; background:var(--orange); color:#07070f; border:none; border-radius:10px; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:14px; transition:all .2s; white-space:nowrap; }
+    .btn-cash-ok:hover { transform:translateY(-1px); }
+
+    /* Comment input */
+    .comment-row { display:none; gap:8px; animation:rise .2s ease-out; }
+    .comment-row.open { display:flex; }
+    #commentInput { flex:1; background:var(--s3); border:1px solid var(--b2); border-radius:10px; padding:10px 14px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none; transition:border-color .2s; }
+    #commentInput:focus { border-color:var(--blue); }
+    #commentInput::placeholder { color:var(--muted); }
+    .btn-note-ok { padding:10px 14px; background:var(--blue); color:white; border:none; border-radius:10px; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px; transition:all .2s; }
+    .btn-note-ok:hover { transform:translateY(-1px); }
+
+    /* Success */
+    .success-body { padding:28px 20px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; }
+    .s-icon { font-size:56px; line-height:1; }
+    .s-name { font-size:22px; font-weight:800; margin-top:4px; }
+    .s-boxes{ font-size:52px; font-weight:800; color:var(--accent); line-height:1; }
+    .s-lbl  { font-size:14px; color:var(--muted2); }
+    .s-timing { font-size:13px; font-weight:600; margin-top:4px; }
+    .s-timing.now   { color:var(--green); }
+    .s-timing.later { color:var(--orange); }
+    .countdown-row { font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; padding:12px 20px 6px; text-align:center; }
+
+    /* Spinner */
+    .spin { display:inline-block; width:15px; height:15px; border:2px solid rgba(255,255,255,.15); border-top-color:var(--accent); border-radius:50%; animation:rot .7s linear infinite; vertical-align:middle; margin-right:5px; }
+    @keyframes rot { to{transform:rotate(360deg)} }
+
+    /* Toast */
+    #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(60px); background:var(--s3); border:1px solid var(--b2); color:var(--text); padding:11px 22px; border-radius:24px; font-size:14px; font-weight:600; white-space:nowrap; z-index:999; pointer-events:none; box-shadow:0 8px 24px rgba(0,0,0,.4); transition:transform .3s cubic-bezier(.34,1.56,.64,1); }
+    #toast.show { transform:translateX(-50%) translateY(0); }
+    #toast.ok  { border-color:rgba(45,206,137,.4); color:var(--green); }
+    #toast.err { border-color:rgba(255,77,77,.4); color:var(--red); }
+    #toast.warn{ border-color:rgba(255,140,66,.4); color:var(--orange); }
+
+    @media(max-width:480px) {
+      header { padding:12px 14px; }
+      .logo-title { font-size:17px; }
+      #camera-section { padding:14px; }
+      #qr-reader,#placeholder,#startBtn,#stopBtn,#errorBox,#manual-section { max-width:100%; }
+      .stats-grid { grid-template-columns:repeat(2,1fr); }
+      .result-card { max-width:100%; }
+    }
+  </style>
+</head>
+<body>
+<div id="toast"></div>
+
+<div id="app">
+
+  <!-- Config banner — shown if API_URL is placeholder -->
+  <div id="config-banner">
+    ⚙️ <strong>Setup needed:</strong> Open this file and set your <code>API_URL</code> at the top of the script.
+    <a href="#setup-help" onclick="showSetupHelp()">How?</a>
+  </div>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">📦</div>
+      <div>
+        <div class="logo-title">SnackBox</div>
+        <span class="logo-sub">QR Scanner</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="stats-pill" id="statsPill" onclick="toggleStats()">
+        Collected: <span class="count" id="scanCountEl">0</span>
+      </div>
+      <div class="dot-conn checking" id="connDot" title="Checking…"></div>
+    </div>
+  </header>
+
+  <!-- Stats drawer -->
+  <div id="stats-drawer">
+    <div class="stats-grid">
+      <div class="stat-item"><div class="stat-val" id="sd-total"     style="color:var(--accent)">—</div><div class="stat-lbl">Total</div></div>
+      <div class="stat-item"><div class="stat-val" id="sd-collected" style="color:var(--green)">—</div><div class="stat-lbl">Collected</div></div>
+      <div class="stat-item"><div class="stat-val" id="sd-remaining" style="color:var(--red)">—</div><div class="stat-lbl">Remaining</div></div>
+      <div class="stat-item"><div class="stat-val" id="sd-cash"      style="color:var(--orange)">—</div><div class="stat-lbl">Cash left</div><div class="stat-sub" id="sd-boxes"></div></div>
+    </div>
+  </div>
+
+  <!-- Camera section -->
+  <div id="camera-section">
+    <div id="placeholder">
+      <div class="ph-icon">📷</div>
+      <div class="ph-text">Tap below to start scanning</div>
+    </div>
+
+    <div id="qr-reader">
+      <div class="scan-frame"><div class="c2"></div></div>
+      <div class="scan-line" id="scanLine"></div>
+    </div>
+
+    <div class="scanning-badge" id="scanBadge">
+      <div class="dot"></div>Scanning for QR code…
+    </div>
+
+    <div id="errorBox"></div>
+
+    <button id="startBtn" onclick="startScanner()">🎯 Start Camera</button>
+    <button id="stopBtn"  onclick="stopScanner()">Stop Camera</button>
+
+    <div id="manual-section">
+      <button class="manual-toggle" onclick="toggleManual()">⌨️ Can't scan? Enter ID manually</button>
+      <div class="manual-row" id="manualRow">
+        <input id="manualInput" type="text" placeholder="SB-…" autocomplete="off" autocapitalize="characters"
+          onkeydown="if(event.key==='Enter')lookupManual()"/>
+        <button class="manual-go" onclick="lookupManual()">Look up</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="result-panel"></div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  ⚙️  CONFIGURATION — paste your Apps Script Web App URL here
+// ══════════════════════════════════════════════════════════════
+const API_URL = "https://script.google.com/macros/s/AKfycbyckMOXAlR8IUh011K9gBDs6gasF57S-Ic4gN0_s7B3qS6AJWtZLcJDXuhFh6E4sakt/exec";
+//
+// How to get it:
+//  1. Open Apps Script (Extensions → Apps Script in your sheet)
+//  2. Click Deploy → Manage deployments → copy the Web App URL
+//  3. Replace PASTE_YOUR_WEB_APP_URL_HERE above with that URL
+// ══════════════════════════════════════════════════════════════
+
+// ── State ─────────────────────────────────────────────────────
+let scanner     = null;
+let scanCount   = 0;
+let lastId      = null;
+let busy        = false;
+let statsOpen   = false;
+let rescanTimer = null;
+let cashOpen    = false;
+let commentOpen = false;
+let currentQrData = null;
+let currentPayLater = false;
+let currentDefaultBoxes = 1;
+
+// ── DOM ────────────────────────────────────────────────────────
+const placeholder = document.getElementById('placeholder');
+const qrReader    = document.getElementById('qr-reader');
+const startBtn    = document.getElementById('startBtn');
+const stopBtn     = document.getElementById('stopBtn');
+const scanBadge   = document.getElementById('scanBadge');
+const resultPanel = document.getElementById('result-panel');
+const errorBox    = document.getElementById('errorBox');
+const connDot     = document.getElementById('connDot');
+const statsPill   = document.getElementById('statsPill');
+const scanCountEl = document.getElementById('scanCountEl');
+const scanLine    = document.getElementById('scanLine');
+
+// ── API check on load ─────────────────────────────────────────
+window.addEventListener('load', () => {
+  const saved = sessionStorage.getItem('sb_count');
+  if (saved) { scanCount = parseInt(saved)||0; scanCountEl.textContent = scanCount; }
+
+  if (!API_URL || API_URL === 'https://script.google.com/macros/s/AKfycbyckMOXAlR8IUh011K9gBDs6gasF57S-Ic4gN0_s7B3qS6AJWtZLcJDXuhFh6E4sakt/exec') {
+    document.getElementById('config-banner').style.display = 'block';
+    connDot.classList.remove('checking');
+    connDot.classList.add('offline');
+    return;
+  }
+  pingApi();
+});
+
+window.addEventListener('beforeunload', () => {
+  sessionStorage.setItem('sb_count', scanCount);
+});
+
+// ── Ping API ──────────────────────────────────────────────────
+async function pingApi() {
+  connDot.className = 'dot-conn checking';
+  try {
+    const r = await apiGet('ping');
+    connDot.className = r.success ? 'dot-conn' : 'dot-conn offline';
+    connDot.title = r.success ? 'Connected to SnackBox API' : 'API error';
+  } catch(e) {
+    connDot.className = 'dot-conn offline';
+    connDot.title = 'Cannot reach API';
+  }
+}
+
+// ── API helpers ───────────────────────────────────────────────
+async function apiGet(action, params = {}) {
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  const r = await fetch(url.toString(), { method: 'GET' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function apiPost(action, body = {}) {
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...body }),
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+// ── Stats drawer ──────────────────────────────────────────────
+function toggleStats() {
+  statsOpen = !statsOpen;
+  document.getElementById('stats-drawer').classList.toggle('open', statsOpen);
+  if (statsOpen) loadStats();
+}
+
+async function loadStats() {
+  try {
+    const s = await apiGet('stats');
+    if (s && !s.error) {
+      document.getElementById('sd-total').textContent     = s.total     ?? '—';
+      document.getElementById('sd-collected').textContent = s.collected ?? '—';
+      document.getElementById('sd-remaining').textContent = s.remaining ?? '—';
+      document.getElementById('sd-cash').textContent      = 'AWG ' + ((s.cashToCollect||0).toFixed(0));
+      document.getElementById('sd-boxes').textContent     = (s.boxesRemaining||0) + ' boxes left';
+    }
+  } catch(e) {}
+}
+setInterval(() => { if (statsOpen) loadStats(); }, 30000);
+
+// ── Error helpers ─────────────────────────────────────────────
+function showErr(msg) { errorBox.style.display='block'; errorBox.innerHTML='⚠️ ' + msg; }
+function hideErr()    { errorBox.style.display='none'; errorBox.innerHTML=''; }
+
+// ── Camera controls ───────────────────────────────────────────
+async function startScanner() {
+  if (API_URL === 'https://script.google.com/macros/s/AKfycbyckMOXAlR8IUh011K9gBDs6gasF57S-Ic4gN0_s7B3qS6AJWtZLcJDXuhFh6E4sakt/exec') {
+    showErr('Set your API_URL first — see the yellow banner above.');
+    return;
+  }
+  hideErr();
+  startBtn.disabled = true;
+  startBtn.innerHTML = '<span class="spin"></span> Starting…';
+
+  try {
+    scanner = new Html5Qrcode("qr-reader", { verbose: false });
+    await scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
+      onScanSuccess, () => {}
+    );
+    placeholder.style.display = 'none';
+    qrReader.style.display    = 'block';
+    scanLine.classList.add('active');
+    scanBadge.classList.add('active');
+    startBtn.style.display = 'none';
+    stopBtn.style.display  = 'block';
+
+  } catch(err) {
+    startBtn.disabled = false;
+    startBtn.innerHTML = '🎯 Start Camera';
+    const m = err.toString();
+    if (m.includes('ermission') || m.includes('NotAllowed'))
+      showErr('Camera permission denied. Tap the 🔒 lock in your browser address bar → allow camera → refresh.');
+    else if (m.includes('NotFound') || m.includes('no camera'))
+      showErr('No camera found on this device.');
+    else
+      showErr('Could not start camera: ' + m);
+  }
+}
+
+async function stopScanner() {
+  if (scanner) { try { await scanner.stop(); } catch(e){} scanner = null; }
+  qrReader.style.display = 'none';
+  scanLine.classList.remove('active');
+  placeholder.style.display = 'flex';
+  scanBadge.classList.remove('active');
+  startBtn.style.display = 'block';
+  startBtn.disabled = false;
+  startBtn.innerHTML = '🎯 Start Camera';
+  stopBtn.style.display = 'none';
+  resetState();
+  hideErr();
+}
+
+// ── QR detection ─────────────────────────────────────────────
+function onScanSuccess(text) {
+  if (busy || text === lastId) return;
+  lastId = text; busy = true;
+  if (navigator.vibrate) navigator.vibrate(80);
+  clearTimeout(rescanTimer);
+  doLookup(text);
+}
+
+// ── Manual lookup ─────────────────────────────────────────────
+function toggleManual() {
+  const row = document.getElementById('manualRow');
+  row.classList.toggle('open');
+  if (row.classList.contains('open')) document.getElementById('manualInput').focus();
+}
+
+function lookupManual() {
+  const val = document.getElementById('manualInput').value.trim();
+  if (!val || busy) return;
+  lastId = val; busy = true;
+  doLookup(val);
+  document.getElementById('manualInput').value = '';
+  document.getElementById('manualRow').classList.remove('open');
+}
+
+// ── Lookup via API ────────────────────────────────────────────
+async function doLookup(id) {
+  showLoading();
+  try {
+    const r = await apiGet('lookup', { id });
+    currentQrData       = id;
+    currentPayLater     = r.paymentTiming === 'later';
+    currentDefaultBoxes = Number(r.quantity) || 1;
+    showResult(r);
+  } catch(e) {
+    showError('Connection error. Check internet and try again.');
+    busy = false;
+  }
+}
+
+// ── Show result ────────────────────────────────────────────────
+function showResult(d) {
+  if (!d.success) {
+    if (navigator.vibrate) navigator.vibrate([80,50,80]);
+    showError(d.error || 'Order not found for this QR code.');
+    busy = false;
+    return;
+  }
+
+  if (d.isCancelled) {
+    if (navigator.vibrate) navigator.vibrate([100,50,100,50,100]);
+    resultPanel.style.display = 'block';
+    resultPanel.innerHTML = `
+      <div class="result-card">
+        <div class="rh rh-cancel"><div class="ri">🚫</div><div class="rt">Order Cancelled</div></div>
+        <div class="rbody">
+          <div class="irow"><span class="ilbl">Name</span><span class="ival">${x(d.name)}</span></div>
+          <div class="irow"><span class="ilbl">Status</span><span class="sbadge sb-can">Cancelled</span></div>
+        </div>
+        <div class="ract"><button class="btn-next" onclick="dismiss()">Back to scanner</button></div>
+      </div>`;
+    busy = false; return;
+  }
+
+  if (d.collected) {
+    if (navigator.vibrate) navigator.vibrate([80,40,80,40,80]);
+  } else {
+    if (navigator.vibrate) navigator.vibrate(120);
+  }
+
+  const timingBadge = d.paymentTiming === 'later'
+    ? `<span class="tbadge t-later">📅 Pagando 20 April</span>`
+    : `<span class="tbadge t-now">✅ Paid</span>`;
+
+  const statusBadge = d.collected
+    ? `<span class="sbadge sb-col">Collected</span>`
+    : d.paymentTiming === 'later'
+      ? `<span class="sbadge sb-later">${x(String(d.paymentStatus||'PayLater'))}</span>`
+      : `<span class="sbadge sb-paid">${x(String(d.paymentStatus||'Paid'))}</span>`;
+
+  const commentHtml = d.comments
+    ? `<div class="irow"><span class="ilbl">Note</span><span class="comment-text">${x(String(d.comments))}</span></div>`
+    : '';
+
+  const qd = x(currentQrData);
+  const actionsHtml = !d.collected ? `
+    <div class="arow">
+      <button class="btn-collect" id="collectBtn" onclick="doCollect()">✓ Mark Collected</button>
+      ${d.paymentTiming==='later' ? `<button class="btn-cash" id="cashBtn" onclick="toggleCash()">💵 Collect cash</button>` : ''}
+      <button class="btn-flag" onclick="toggleComment()" title="Add note">📝</button>
+    </div>
+    <div class="cash-row" id="cashRow">
+      <div class="cash-pfx">AWG</div>
+      <input id="cashInput" type="number" placeholder="${currentDefaultBoxes * 15}" inputmode="decimal"/>
+      <button class="btn-cash-ok" onclick="doCash()">Confirm</button>
+    </div>
+    <div class="comment-row" id="commentRow">
+      <input id="commentInput" type="text" placeholder="Add a note…" maxlength="200"/>
+      <button class="btn-note-ok" onclick="doComment()">Save</button>
+    </div>
+  ` : '';
+
+  resultPanel.style.display = 'block';
+  resultPanel.innerHTML = `
+    <div class="result-card">
+      <div class="rh ${d.collected ? 'rh-warn' : 'rh-ok'}">
+        <div class="ri">${d.collected ? '⚠️' : '✅'}</div>
+        <div class="rt">${d.collected ? 'Already Collected' : 'Order Found'}</div>
+        ${timingBadge}
+      </div>
+      <div class="rbody">
+        <div class="irow"><span class="ilbl">Name</span><span class="ival">${x(d.name)}</span></div>
+        <div class="irow"><span class="ilbl">Boxes</span><span class="ival big">${x(String(d.quantity))}</span></div>
+        <div class="irow"><span class="ilbl">Payment</span><span class="ival" style="font-size:14px">${x(d.paymentMethod)}</span></div>
+        <div class="irow"><span class="ilbl">Status</span>${statusBadge}</div>
+        ${commentHtml}
+      </div>
+      <div class="ract">
+        ${actionsHtml}
+        <button class="btn-next" onclick="dismiss()">${d.collected ? '→ Scan next' : 'Skip'}</button>
+      </div>
+    </div>`;
+
+  cashOpen = false; commentOpen = false;
+  busy = false;
+}
+
+// ── Actions ───────────────────────────────────────────────────
+async function doCollect() {
+  const btn = document.getElementById('collectBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving…'; }
+  try {
+    const r = await apiPost('collect', { uniqueId: currentQrData });
+    if (r.success) {
+      scanCount++; scanCountEl.textContent = scanCount;
+      statsPill.classList.add('pulse');
+      setTimeout(() => statsPill.classList.remove('pulse'), 600);
+      showSuccess(r, false);
+      if (statsOpen) loadStats();
+    } else if (r.alreadyUsed) {
+      showToast('⚠️ Already collected', 'warn'); dismiss();
+    } else {
+      showToast('❌ ' + (r.error||'Save failed'), 'err'); dismiss();
+    }
+  } catch(e) { showToast('❌ Connection error', 'err'); dismiss(); }
+}
+
+function toggleCash() {
+  cashOpen = !cashOpen;
+  const row = document.getElementById('cashRow');
+  if (row) {
+    row.classList.toggle('open', cashOpen);
+    if (cashOpen) {
+      document.getElementById('cashInput')?.focus();
+      commentOpen = false;
+      document.getElementById('commentRow')?.classList.remove('open');
+    }
+  }
+}
+
+function toggleComment() {
+  commentOpen = !commentOpen;
+  const row = document.getElementById('commentRow');
+  if (row) {
+    row.classList.toggle('open', commentOpen);
+    if (commentOpen) {
+      document.getElementById('commentInput')?.focus();
+      cashOpen = false;
+      document.getElementById('cashRow')?.classList.remove('open');
+    }
+  }
+}
+
+async function doCash() {
+  const inp    = document.getElementById('cashInput');
+  const amount = inp ? (parseFloat(inp.value) || currentDefaultBoxes * 15) : currentDefaultBoxes * 15;
+  try {
+    const r = await apiPost('collectCash', { uniqueId: currentQrData, amount });
+    if (r.success) {
+      scanCount++; scanCountEl.textContent = scanCount;
+      statsPill.classList.add('pulse');
+      setTimeout(() => statsPill.classList.remove('pulse'), 600);
+      showSuccess(r, true);
+      if (statsOpen) loadStats();
+    } else if (r.alreadyUsed) {
+      showToast('⚠️ Already collected', 'warn'); dismiss();
+    } else {
+      showToast('❌ ' + (r.error||'Save failed'), 'err'); dismiss();
+    }
+  } catch(e) { showToast('❌ Connection error', 'err'); dismiss(); }
+}
+
+async function doComment() {
+  const inp     = document.getElementById('commentInput');
+  const comment = inp ? inp.value.trim() : '';
+  if (!comment) return;
+  try {
+    const r = await apiPost('comment', { uniqueId: currentQrData, comment });
+    if (r.success) { showToast('📝 Note saved', 'ok'); toggleComment(); }
+    else showToast('❌ Could not save', 'err');
+  } catch(e) { showToast('❌ Connection error', 'err'); }
+}
+
+// ── Success screen ────────────────────────────────────────────
+function showSuccess(r, isCash) {
+  const timingMsg = isCash
+    ? `💵 AWG ${r.amount} cash collected`
+    : r.paymentTiming === 'later'
+      ? '📅 Payment collected (April 20 customer)'
+      : '✅ Pre-paid order collected';
+  const tClass = r.paymentTiming === 'later' ? 'later' : 'now';
+
+  resultPanel.innerHTML = `
+    <div class="result-card">
+      <div class="rh rh-ok" style="flex-direction:column;align-items:center;gap:0;padding:0">
+        <div class="success-body">
+          <div class="s-icon">${isCash ? '💵' : '🎉'}</div>
+          <div class="s-name">${x(r.name)}</div>
+          <div class="s-boxes">${x(String(r.quantity))}</div>
+          <div class="s-lbl">box${r.quantity>1?'es':''}</div>
+          <div class="s-timing ${tClass}">${timingMsg}</div>
+        </div>
+      </div>
+      <div class="countdown-row">Auto scan next in <span id="countdown">3</span>s</div>
+      <div class="ract">
+        <button class="btn-next" style="font-size:17px;padding:16px" onclick="cancelAuto()">→ Scan Next</button>
+      </div>
+    </div>`;
+  showToast(isCash ? `💵 AWG ${r.amount} collected` : '✓ Collected — ' + r.name, 'ok');
+  startAuto();
+}
+
+// ── Loading/error states ──────────────────────────────────────
+function showLoading() {
+  resultPanel.style.display = 'block';
+  resultPanel.innerHTML = `
+    <div class="result-card">
+      <div class="rh rh-load">
+        <div class="ri"><span class="spin"></span></div>
+        <div class="rt">Looking up order…</div>
+      </div>
+    </div>`;
+}
+
+function showError(msg) {
+  resultPanel.style.display = 'block';
+  resultPanel.innerHTML = `
+    <div class="result-card">
+      <div class="rh rh-err"><div class="ri">❌</div><div class="rt">Not Found</div></div>
+      <div class="rbody"><div style="font-size:14px;color:var(--muted2);line-height:1.5">${x(msg)}</div></div>
+      <div class="ract"><button class="btn-next" onclick="dismiss()">Try Again</button></div>
+    </div>`;
+  setTimeout(dismiss, 4000);
+  rescanTimer = setTimeout(resetState, 4000);
+}
+
+function dismiss() {
+  resultPanel.style.display = 'none';
+  resultPanel.innerHTML = '';
+  resetState();
+}
+
+function resetState() {
+  lastId = null; busy = false;
+  cashOpen = false; commentOpen = false;
+  currentQrData = null;
+}
+
+// ── Auto-dismiss ──────────────────────────────────────────────
+let autoTimer = null, countTimer = null;
+function startAuto() {
+  let s = 3;
+  countTimer = setInterval(() => {
+    s--;
+    const el = document.getElementById('countdown');
+    if (el) el.textContent = s;
+    if (s <= 0) { clearInterval(countTimer); countTimer = null; }
+  }, 1000);
+  autoTimer = setTimeout(dismiss, 3000);
+}
+function cancelAuto() {
+  clearTimeout(autoTimer); autoTimer = null;
+  clearInterval(countTimer); countTimer = null;
+  dismiss();
+}
+
+// ── Setup help ────────────────────────────────────────────────
+function showSetupHelp() {
+  alert(
+    'HOW TO SET YOUR API URL\n\n' +
+    '1. Open your Google Sheet\n' +
+    '2. Click Extensions → Apps Script\n' +
+    '3. Click Deploy → Manage deployments\n' +
+    '4. Copy the Web App URL\n' +
+    '5. Open this index.html file in a text editor\n' +
+    '6. Find: PASTE_YOUR_WEB_APP_URL_HERE\n' +
+    '7. Replace it with your URL\n' +
+    '8. Save and re-upload to GitHub'
+  );
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 2800);
+}
+
+// ── HTML escape ───────────────────────────────────────────────
+function x(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+</script>
+</body>
+</html>
