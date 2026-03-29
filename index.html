@@ -44,14 +44,33 @@
     .dot-conn.offline  { background:var(--red);    box-shadow:0 0 6px var(--red); }
     .dot-conn.checking { background:var(--orange); box-shadow:0 0 6px var(--orange); }
 
-    /* STATS DRAWER */
-    #stats-drawer { overflow:hidden; max-height:0; transition:max-height .35s ease; border-bottom:1px solid var(--b1); background:var(--s1); }
-    #stats-drawer.open { max-height:140px; }
-    .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); padding:12px 16px; gap:10px; }
-    .stat-item { text-align:center; }
+    /* PROGRESS STRIP — always visible below header */
+    #progress-strip { background:var(--s1); border-bottom:1px solid var(--b1); padding:10px 16px; }
+    .pstrip-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .pstrip-label { font-size:11px; color:var(--muted2); font-family:'Space Mono',monospace; text-transform:uppercase; letter-spacing:1px; }
+    .pstrip-nums { font-size:13px; font-weight:800; color:var(--green); font-family:'Space Mono',monospace; }
+    .pstrip-nums span { color:var(--muted2); font-weight:400; font-size:11px; margin-left:4px; }
+    .pstrip-bar { background:var(--s3); border-radius:20px; height:6px; overflow:hidden; }
+    .pstrip-fill { height:100%; border-radius:20px; background:linear-gradient(90deg,var(--green),#11998e); transition:width .6s ease; }
+    .pstrip-sub { display:flex; justify-content:space-between; margin-top:5px; font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; }
+
+    /* STATS DRAWER — expanded with full stats */
+    #stats-drawer { overflow:hidden; max-height:0; transition:max-height .4s ease; border-bottom:1px solid var(--b1); background:var(--s1); }
+    #stats-drawer.open { max-height:600px; }
+    .stats-section { padding:12px 16px; border-bottom:1px solid var(--b1); }
+    .stats-section:last-child { border-bottom:none; }
+    .stats-section-title { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; font-family:'Space Mono',monospace; margin-bottom:10px; }
+    .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .stat-item { background:var(--s2); border-radius:10px; padding:10px 8px; text-align:center; border:1px solid var(--b1); }
     .stat-val { font-size:20px; font-weight:800; line-height:1; }
-    .stat-lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:3px; font-family:'Space Mono',monospace; }
-    .stat-sub { font-size:10px; color:var(--muted2); margin-top:2px; }
+    .stat-lbl { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; margin-top:3px; font-family:'Space Mono',monospace; line-height:1.3; }
+    .rev-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .rev-item { background:var(--s2); border-radius:10px; padding:10px 8px; text-align:center; border:1px solid var(--b1); }
+    .rev-amt { font-size:16px; font-weight:800; line-height:1; margin:3px 0; }
+    .rev-lbl { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; font-family:'Space Mono',monospace; }
+    .stats-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--b1); font-size:12px; }
+    .stats-row:last-child { border-bottom:none; }
+    .stats-row-val { font-weight:700; font-family:'Space Mono',monospace; font-size:13px; }
 
     /* CAMERA SECTION */
     #camera-section { padding:14px 16px; flex:1; display:flex; flex-direction:column; align-items:center; gap:12px; }
@@ -230,12 +249,89 @@
     </div>
   </header>
 
+  <!-- Always-visible collection progress strip -->
+  <div id="progress-strip">
+    <div class="pstrip-row">
+      <div class="pstrip-label">Collection progress</div>
+      <div class="pstrip-nums" id="ps-nums">— / — <span>boxes</span></div>
+    </div>
+    <div class="pstrip-bar"><div class="pstrip-fill" id="ps-fill" style="width:0%"></div></div>
+    <div class="pstrip-sub">
+      <span id="ps-pct">Loading…</span>
+      <span id="ps-rem" style="color:var(--orange)"></span>
+    </div>
+  </div>
+
+  <!-- Expandable full stats drawer -->
   <div id="stats-drawer">
-    <div class="stats-grid">
-      <div class="stat-item"><div class="stat-val" id="sd-total"     style="color:var(--accent)">—</div><div class="stat-lbl">Total</div></div>
-      <div class="stat-item"><div class="stat-val" id="sd-collected" style="color:var(--green)">—</div><div class="stat-lbl">Collected</div></div>
-      <div class="stat-item"><div class="stat-val" id="sd-remaining" style="color:var(--red)">—</div><div class="stat-lbl">Left</div></div>
-      <div class="stat-item"><div class="stat-val" id="sd-cash"      style="color:var(--orange)">—</div><div class="stat-lbl">Cash</div><div class="stat-sub" id="sd-boxes"></div></div>
+    <!-- Revenue -->
+    <div class="stats-section">
+      <div class="stats-section-title">Revenue</div>
+      <div class="rev-strip">
+        <div class="rev-item">
+          <div class="rev-lbl">Received</div>
+          <div class="rev-amt" style="color:var(--green)" id="sd-received">—</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:2px" id="sd-paid-boxes">—</div>
+        </div>
+        <div class="rev-item">
+          <div class="rev-lbl">Pending</div>
+          <div class="rev-amt" style="color:var(--orange)" id="sd-pending-rev">—</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:2px" id="sd-later-boxes">—</div>
+        </div>
+        <div class="rev-item">
+          <div class="rev-lbl">Expected</div>
+          <div class="rev-amt" style="color:var(--blue)" id="sd-expected">—</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:2px" id="sd-total-boxes-rev">—</div>
+        </div>
+      </div>
+    </div>
+    <!-- Box counts -->
+    <div class="stats-section">
+      <div class="stats-section-title">Boxes</div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--accent)" id="sd-total-boxes">—</div>
+          <div class="stat-lbl">Total</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--green)" id="sd-paid-b">—</div>
+          <div class="stat-lbl">Paid</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--orange)" id="sd-later-b">—</div>
+          <div class="stat-lbl">Pay Apr 27</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--green)" id="sd-collected-b">—</div>
+          <div class="stat-lbl">Collected</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--red)" id="sd-uncollected-b">—</div>
+          <div class="stat-lbl">Still out</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--muted2)" id="sd-unpaid-b">—</div>
+          <div class="stat-lbl">Not paid</div>
+        </div>
+      </div>
+    </div>
+    <!-- Orders -->
+    <div class="stats-section">
+      <div class="stats-section-title">Orders</div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--accent)" id="sd-total-orders">—</div>
+          <div class="stat-lbl">Total</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--accent)" id="sd-qr-sent">—</div>
+          <div class="stat-lbl">QR Sent</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--red)" id="sd-pending-send">—</div>
+          <div class="stat-lbl">Pending</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -276,7 +372,7 @@
 // ════════════════════════════════════════════════════════════
 //  ⚙️  SET YOUR WEB APP URL HERE
 // ════════════════════════════════════════════════════════════
-const API_URL = "https://script.google.com/macros/s/AKfycbwMTo3rn9yoanQYTgKgHBlISKMYD3Jnl1b-8uT4X85NaRcfR6Y2Tkjku5D-4nUv7p81/exec";
+const API_URL = "PASTE_YOUR_WEB_APP_URL_HERE";
 // ════════════════════════════════════════════════════════════
 
 let scanner = null, scanCount = 0, lastId = null, busy = false;
@@ -327,15 +423,50 @@ function toggleStats() {
 async function loadStats() {
   try {
     const s = await apiGet('stats');
-    if (!s||s.error) return;
-    document.getElementById('sd-total').textContent     = s.total??'—';
-    document.getElementById('sd-collected').textContent = s.collected??'—';
-    document.getElementById('sd-remaining').textContent = s.remaining??'—';
-    document.getElementById('sd-cash').textContent      = 'AWG '+(s.cashToCollect||0).toFixed(0);
-    document.getElementById('sd-boxes').textContent     = (s.boxesRemaining||0)+' boxes';
-  } catch(e) {}
+    if (!s || s.error) return;
+
+    const total     = s.total     ?? 0;
+    const collected = s.collected ?? 0;
+    const remaining = s.remaining ?? 0;
+    const pct = total > 0 ? Math.min(100, Math.round((collected / total) * 100)) : 0;
+
+    // Always-visible progress strip
+    document.getElementById('ps-nums').innerHTML = `${collected} / ${total} <span>boxes</span>`;
+    document.getElementById('ps-fill').style.width = pct + '%';
+    document.getElementById('ps-pct').textContent = pct + '% collected';
+    document.getElementById('ps-rem').textContent = remaining + ' remaining';
+
+    // Revenue section
+    const BOX_PRICE = 15;
+    const paidBoxes  = s.paidBoxes  ?? 0;
+    const laterBoxes = s.laterBoxes ?? 0;
+    const totalBoxes = s.totalBoxes ?? total;
+    document.getElementById('sd-received').textContent     = 'AWG ' + (paidBoxes  * BOX_PRICE);
+    document.getElementById('sd-pending-rev').textContent  = 'AWG ' + (laterBoxes * BOX_PRICE);
+    document.getElementById('sd-expected').textContent     = 'AWG ' + (totalBoxes * BOX_PRICE);
+    document.getElementById('sd-paid-boxes').textContent   = paidBoxes  + ' paid boxes';
+    document.getElementById('sd-later-boxes').textContent  = laterBoxes + ' pay-later';
+    document.getElementById('sd-total-boxes-rev').textContent = totalBoxes + ' total boxes';
+
+    // Box counts
+    document.getElementById('sd-total-boxes').textContent   = totalBoxes;
+    document.getElementById('sd-paid-b').textContent        = paidBoxes;
+    document.getElementById('sd-later-b').textContent       = laterBoxes;
+    document.getElementById('sd-collected-b').textContent   = collected;
+    document.getElementById('sd-uncollected-b').textContent = s.boxesRemaining ?? remaining;
+    document.getElementById('sd-unpaid-b').textContent      = totalBoxes - paidBoxes - laterBoxes;
+
+    // Orders
+    document.getElementById('sd-total-orders').textContent  = s.totalOrders  ?? '—';
+    document.getElementById('sd-qr-sent').textContent       = s.sentOrders   ?? '—';
+    document.getElementById('sd-pending-send').textContent  = s.pendingSendOrders ?? '—';
+
+    // Update pill count
+    statsPill.classList.add('pulse');
+    setTimeout(() => statsPill.classList.remove('pulse'), 600);
+  } catch(e) { dbg('loadStats error', e.message); }
 }
-setInterval(()=>{ if(statsOpen) loadStats(); }, 30000);
+setInterval(() => { loadStats(); }, 30000);
 
 // ── Error ──────────────────────────────────────────────────────
 function showErr(m) { errorBox.style.display='block'; errorBox.innerHTML='⚠️ '+m; }
@@ -686,6 +817,7 @@ window.addEventListener('load', ()=>{
     connDot.className='dot-conn offline'; return;
   }
   pingApi();
+  loadStats(); // populate progress strip right away
 });
 window.addEventListener('beforeunload',()=>sessionStorage.setItem('sb_count',scanCount));
 
