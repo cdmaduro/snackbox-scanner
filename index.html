@@ -450,7 +450,7 @@ if (sessionStorage.getItem('sb_auth') === '1') {
 // ════════════════════════════════════════════════════════════
 //  ⚙️  SET YOUR WEB APP URL HERE
 // ════════════════════════════════════════════════════════════
-const API_URL = "https://script.google.com/macros/s/AKfycbx2jfxVZ30vKfyxL5-GFT72CpJI-qIts-anl8OYmCX0dxgxiXIbHqWJdCsSe-MP8GCW/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyNKSbeaZFfm8v0B20tQPnZQBe_4qXTLSy5Rk73X6XSRtDr860o8YCzjjrJ7xpymV0D/exec";
 // ════════════════════════════════════════════════════════════
 
 let scanner = null, scanCount = 0, lastId = null, busy = false;
@@ -503,25 +503,28 @@ async function loadStats() {
     const s = await apiGet('stats');
     if (!s || s.error) return;
 
-    const total     = s.total     ?? 0;
-    const collected = s.collected ?? 0;
-    const remaining = s.remaining ?? 0;
-    const pct = total > 0 ? Math.min(100, Math.round((collected / total) * 100)) : 0;
+    const totalBoxes      = s.totalBoxes      ?? 0;
+    const paidBoxes       = s.paidBoxes       ?? 0;
+    const laterBoxes      = s.laterBoxes      ?? 0;
+    const unpaidBoxes     = s.unpaidBoxes     ?? 0;
+    const collectedBoxes  = s.collectedBoxes  ?? 0;
+    const uncollected     = s.uncollectedPaidBoxes ?? 0;
+    const remaining       = s.remaining       ?? (totalBoxes - collectedBoxes);
+    const revenueRec      = s.revenueReceived ?? 0;
+    const revenuePend     = s.revenuePending  ?? 0;
+    const revenueExp      = s.revenueExpected ?? 0;
+    const pct = totalBoxes > 0 ? Math.min(100, Math.round((collectedBoxes / totalBoxes) * 100)) : 0;
 
     // Always-visible progress strip
-    document.getElementById('ps-nums').innerHTML = `${collected} / ${total} <span>boxes</span>`;
+    document.getElementById('ps-nums').innerHTML = `${collectedBoxes} / ${totalBoxes} <span>boxes</span>`;
     document.getElementById('ps-fill').style.width = pct + '%';
     document.getElementById('ps-pct').textContent = pct + '% collected';
     document.getElementById('ps-rem').textContent = remaining + ' remaining';
 
-    // Revenue section
-    const BOX_PRICE = 15;
-    const paidBoxes  = s.paidBoxes  ?? 0;
-    const laterBoxes = s.laterBoxes ?? 0;
-    const totalBoxes = s.totalBoxes ?? total;
-    document.getElementById('sd-received').textContent     = 'AWG ' + (paidBoxes  * BOX_PRICE);
-    document.getElementById('sd-pending-rev').textContent  = 'AWG ' + (laterBoxes * BOX_PRICE);
-    document.getElementById('sd-expected').textContent     = 'AWG ' + (totalBoxes * BOX_PRICE);
+    // Revenue
+    document.getElementById('sd-received').textContent     = 'AWG ' + revenueRec;
+    document.getElementById('sd-pending-rev').textContent  = 'AWG ' + revenuePend;
+    document.getElementById('sd-expected').textContent     = 'AWG ' + revenueExp;
     document.getElementById('sd-paid-boxes').textContent   = paidBoxes  + ' paid boxes';
     document.getElementById('sd-later-boxes').textContent  = laterBoxes + ' pay-later';
     document.getElementById('sd-total-boxes-rev').textContent = totalBoxes + ' total boxes';
@@ -530,16 +533,15 @@ async function loadStats() {
     document.getElementById('sd-total-boxes').textContent   = totalBoxes;
     document.getElementById('sd-paid-b').textContent        = paidBoxes;
     document.getElementById('sd-later-b').textContent       = laterBoxes;
-    document.getElementById('sd-collected-b').textContent   = collected;
-    document.getElementById('sd-uncollected-b').textContent = s.boxesRemaining ?? remaining;
-    document.getElementById('sd-unpaid-b').textContent      = totalBoxes - paidBoxes - laterBoxes;
+    document.getElementById('sd-collected-b').textContent   = collectedBoxes;
+    document.getElementById('sd-uncollected-b').textContent = uncollected;
+    document.getElementById('sd-unpaid-b').textContent      = unpaidBoxes;
 
     // Orders
-    document.getElementById('sd-total-orders').textContent  = s.totalOrders  ?? '—';
-    document.getElementById('sd-qr-sent').textContent       = s.sentOrders   ?? '—';
+    document.getElementById('sd-total-orders').textContent  = s.totalOrders       ?? '—';
+    document.getElementById('sd-qr-sent').textContent       = s.sentOrders        ?? '—';
     document.getElementById('sd-pending-send').textContent  = s.pendingSendOrders ?? '—';
 
-    // Update pill count
     statsPill.classList.add('pulse');
     setTimeout(() => statsPill.classList.remove('pulse'), 600);
   } catch(e) { dbg('loadStats error', e.message); }
