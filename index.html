@@ -336,6 +336,15 @@
         <button class="manual-go" onclick="lookupManual()">Look up</button>
       </div>
     </div>
+
+    <!-- Debug panel — tap to toggle -->
+    <div style="width:100%;max-width:360px;margin-top:4px">
+      <button onclick="document.getElementById('debugBox').parentElement.querySelector('div').style.display=document.getElementById('debugBox').style.display==='none'?'block':'none'"
+        style="width:100%;background:transparent;border:1px dashed rgba(255,255,255,.1);border-radius:8px;padding:6px;color:rgba(255,255,255,.25);font-size:11px;cursor:pointer;font-family:monospace">
+        🔧 Debug log (tap to show/hide)
+      </button>
+      <div id="debugBox" style="display:none;background:#0a0a18;border:1px solid rgba(255,255,255,.1);border-top:none;border-radius:0 0 8px 8px;padding:8px 10px;font-family:monospace;font-size:10px;color:rgba(255,255,255,.45);max-height:160px;overflow-y:auto"></div>
+    </div>
   </div>
 
   <div id="result-panel"></div>
@@ -346,7 +355,7 @@
 // ══════════════════════════════════════════════════════════════
 //  ⚙️  CONFIGURATION — paste your Apps Script Web App URL here
 // ══════════════════════════════════════════════════════════════
-const API_URL = "https://script.google.com/macros/s/AKfycbz54iokuFzlBQMR-TIrZG--ayX7PzIXRHvSWE30PKH9d-tBO5oO8YD6oJiLhVTZoeBr/exec";
+const API_URL = "PASTE_YOUR_WEB_APP_URL_HERE";
 //
 // How to get it:
 //  1. Open Apps Script (Extensions → Apps Script in your sheet)
@@ -415,15 +424,36 @@ async function pingApi() {
 async function apiGet(action, params = {}) {
   const url = new URL(API_URL);
   url.searchParams.set('action', action);
-  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-  const r = await fetch(url.toString(), { method: 'GET' });
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, String(v)));
+  dbg('→ GET ' + action, params);
+  const r = await fetch(url.toString(), {
+    method: 'GET',
+    redirect: 'follow',
+  });
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+  const text = await r.text();
+  dbg('← response (' + text.length + ' chars)', text.substring(0, 120));
+  try {
+    return JSON.parse(text);
+  } catch(e) {
+    throw new Error('Bad JSON: ' + text.substring(0, 80));
+  }
 }
 
-// All mutations also use GET — Apps Script handles CORS on GET only
 async function apiAction(action, params = {}) {
   return apiGet(action, params);
+}
+
+// ── Debug logger ──────────────────────────────────────────────
+function dbg(label, data) {
+  const box = document.getElementById('debugBox');
+  if (!box) return;
+  const line = document.createElement('div');
+  line.style.cssText = 'border-bottom:1px solid rgba(255,255,255,.05);padding:4px 0;word-break:break-all';
+  line.textContent = label + (data ? ' → ' + (typeof data === 'object' ? JSON.stringify(data) : data) : '');
+  box.insertBefore(line, box.firstChild);
+  // Keep only last 8 lines
+  while (box.children.length > 8) box.removeChild(box.lastChild);
 }
 
 // ── Stats drawer ──────────────────────────────────────────────
@@ -530,14 +560,17 @@ function lookupManual() {
 // ── Lookup via API ────────────────────────────────────────────
 async function doLookup(id) {
   showLoading();
+  dbg('scanning', id);
   try {
     const r = await apiGet('lookup', { id });
+    dbg('result', r.success ? 'found: ' + r.name : 'error: ' + r.error);
     currentQrData       = id;
     currentPayLater     = r.paymentTiming === 'later';
     currentDefaultBoxes = Number(r.quantity) || 1;
     showResult(r);
   } catch(e) {
-    showError('Connection error. Check internet and try again.');
+    dbg('FETCH ERROR', e.message);
+    showError('Connection error: ' + e.message);
     busy = false;
   }
 }
@@ -573,7 +606,7 @@ function showResult(d) {
   }
 
   const timingBadge = d.paymentTiming === 'later'
-    ? `<span class="tbadge t-later">📅 Pagando 20 April</span>`
+    ? `<span class="tbadge t-later">📅 Pagando 27 April</span>`
     : `<span class="tbadge t-now">✅ Paid</span>`;
 
   const statusBadge = d.collected
@@ -710,7 +743,7 @@ function showSuccess(r, isCash) {
   const timingMsg = isCash
     ? `💵 AWG ${r.amount} cash collected`
     : r.paymentTiming === 'later'
-      ? '📅 Payment collected (April 20 customer)'
+      ? '📅 Payment collected (April 27 customer)'
       : '✅ Pre-paid order collected';
   const tClass = r.paymentTiming === 'later' ? 'later' : 'now';
 
