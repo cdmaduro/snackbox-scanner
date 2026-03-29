@@ -22,6 +22,27 @@
       --orange:#ff8c42; --blue:#4d8cff;
       --text:#ede9e0; --muted:#5a5a7a; --muted2:#8888aa; --r:16px;
     }
+
+    /* LOGIN SCREEN */
+    #login-screen {
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:var(--bg); z-index:9999;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      padding:32px 24px;
+    }
+    #login-screen.hidden { display:none; }
+    .login-logo { width:64px; height:64px; background:var(--accent); border-radius:18px; display:grid; place-items:center; font-size:32px; margin-bottom:24px; }
+    .login-title { font-size:24px; font-weight:800; color:var(--text); margin-bottom:6px; }
+    .login-sub { font-size:13px; color:var(--muted); margin-bottom:32px; }
+    .login-card { background:var(--s1); border:1px solid var(--b1); border-radius:var(--r); padding:24px; width:100%; max-width:320px; }
+    .login-field { margin-bottom:16px; }
+    .login-field label { display:block; font-size:11px; color:var(--muted2); text-transform:uppercase; letter-spacing:1px; font-family:'Space Mono',monospace; margin-bottom:6px; }
+    .login-field input { width:100%; background:var(--s2); border:1px solid var(--b1); border-radius:10px; padding:12px 14px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:15px; outline:none; }
+    .login-field input:focus { border-color:var(--accent); }
+    .login-field input::placeholder { color:var(--muted); }
+    #login-btn { width:100%; padding:14px; background:var(--accent); color:#07070f; font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:800; border:none; border-radius:12px; cursor:pointer; margin-top:4px; transition:all .2s; }
+    #login-btn:hover { opacity:.9; }
+    #login-err { color:var(--red); font-size:13px; text-align:center; margin-top:12px; min-height:18px; }
     html,body { height:100%; background:var(--bg); color:var(--text); font-family:'Space Grotesk',sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
     #app { min-height:100vh; display:flex; flex-direction:column; }
 
@@ -230,6 +251,26 @@
   <div id="result-card-wrap"></div>
 </div>
 
+<div id="login-screen">
+  <div class="login-logo">📦</div>
+  <div class="login-title">SnackBox Scanner</div>
+  <div class="login-sub">Team Claire · Event Access</div>
+  <div class="login-card">
+    <div class="login-field">
+      <label>Username</label>
+      <input id="login-user" type="text" placeholder="username" autocomplete="username" autocapitalize="none"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"/>
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <button id="login-btn" onclick="doLogin()">Sign in →</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
 <div id="app">
   <div id="config-banner">⚙️ <strong>Setup needed:</strong> Set your <code>API_URL</code> in the script.</div>
 
@@ -370,9 +411,46 @@
 
 <script>
 // ════════════════════════════════════════════════════════════
+//  🔐 LOGIN  (simple — stops casual visitors)
+// ════════════════════════════════════════════════════════════
+// Credentials: cdmaduro / Cdmaduro2018
+// Stored as SHA-256 hashes so plaintext isn't in source
+const CREDS = {
+  user: "17043c3661aade854a1f9bd539067d68ed2e0e54bd568b1e55cc7f41bfd08200", // cdmaduro
+  pass: "85d870971ec744f89fbaa0585fc75182a5889956d57f2d59f6859fe5b4d0a505"  // Cdmaduro2018
+};
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function doLogin() {
+  const u = document.getElementById('login-user').value.trim().toLowerCase();
+  const p = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-err');
+  err.textContent = '';
+  if (!u || !p) { err.textContent = 'Enter username and password.'; return; }
+  const [uh, ph] = await Promise.all([sha256(u), sha256(p)]);
+  if (uh === CREDS.user && ph === CREDS.pass) {
+    sessionStorage.setItem('sb_auth', '1');
+    document.getElementById('login-screen').classList.add('hidden');
+  } else {
+    err.textContent = 'Incorrect username or password.';
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-pass').focus();
+  }
+}
+
+// Check if already logged in this session
+if (sessionStorage.getItem('sb_auth') === '1') {
+  document.getElementById('login-screen').classList.add('hidden');
+}
+
+// ════════════════════════════════════════════════════════════
 //  ⚙️  SET YOUR WEB APP URL HERE
 // ════════════════════════════════════════════════════════════
-const API_URL = "PASTE_YOUR_WEB_APP_URL_HERE";
+const API_URL = "https://script.google.com/macros/s/AKfycbx2jfxVZ30vKfyxL5-GFT72CpJI-qIts-anl8OYmCX0dxgxiXIbHqWJdCsSe-MP8GCW/exec";
 // ════════════════════════════════════════════════════════════
 
 let scanner = null, scanCount = 0, lastId = null, busy = false;
