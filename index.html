@@ -385,7 +385,7 @@ window.addEventListener('load', () => {
   const saved = sessionStorage.getItem('sb_count');
   if (saved) { scanCount = parseInt(saved)||0; scanCountEl.textContent = scanCount; }
 
-  if (!API_URL || API_URL === 'https://script.google.com/macros/s/AKfycbyckMOXAlR8IUh011K9gBDs6gasF57S-Ic4gN0_s7B3qS6AJWtZLcJDXuhFh6E4sakt/exec') {
+  if (!API_URL || API_URL === 'PASTE_YOUR_WEB_APP_URL_HERE') {
     document.getElementById('config-banner').style.display = 'block';
     connDot.classList.remove('checking');
     connDot.classList.add('offline');
@@ -458,7 +458,7 @@ function hideErr()    { errorBox.style.display='none'; errorBox.innerHTML=''; }
 
 // ── Camera controls ───────────────────────────────────────────
 async function startScanner() {
-  if (API_URL === 'https://script.google.com/macros/s/AKfycbyckMOXAlR8IUh011K9gBDs6gasF57S-Ic4gN0_s7B3qS6AJWtZLcJDXuhFh6E4sakt/exec') {
+if (API_URL === 'PASTE_YOUR_WEB_APP_URL_HERE') {
     showErr('Set your API_URL first — see the yellow banner above.');
     return;
   }
